@@ -1,7 +1,7 @@
 default: native
 
 native:
-	ocamlbuild -lib unix -use-menhir tt.native
+	ocamlbuild -tag annot -tag debug -lib unix -use-menhir tt.native
 
 byte:
 	ocamlbuild -lib unix -use-menhir tt.byte
