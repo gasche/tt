@@ -44,18 +44,37 @@ let variable x ppf =
 
 (** [expr e ppf] prints (beautified) expression [e] using formatter [ppf]. *)
 let expr e ppf =
-  let rec expr ?max_level (e, _) ppf =  expr'?max_level e ppf
+  let rec expr ?max_level (e, _) ppf =  expr' ?max_level e ppf
   and expr' ?max_level e ppf =
     let print ?at_level = print ?max_level ?at_level ppf in
       match e with
         | Syntax.Var x -> variable x ppf
         | Syntax.Universe k -> print "Type %d" k
-        | Syntax.Pi (Syntax.Dummy, t1, t2) -> print ~at_level:3 "%t ->@;%t" (expr ~max_level:2 t1) (expr t2)
-        | Syntax.Pi (x, t1, t2) -> print ~at_level:3 "forall %t : %t,@;%t" (variable x) (expr ~max_level:4 t1) (expr t2)
-        | Syntax.Lambda (x, t, e) -> print ~at_level:3 "fun %t : %t =>@;%t" (variable x) (expr t) (expr e)
-        | Syntax.App (e1, e2) -> print ~at_level:1 "%t@;%t" (expr ~max_level:1 e1) (expr ~max_level:0 e2)
+        | Syntax.Pi (Syntax.Dummy, t1, t2) ->
+          print ~at_level:3 "%t ->@;%t" (expr ~max_level:2 t1) (expr t2)
+        | Syntax.Pi (x, t1, t2) ->
+          print ~at_level:3 "forall %t : %t,@;%t"
+            (variable x) (expr ~max_level:4 t1) (expr t2)
+        | Syntax.Lambda (x, t, e) ->
+          print ~at_level:3 "fun %t : %t =>@;%t"
+            (variable x) (expr t) (expr e)
+        | Syntax.App (e1, e2) ->
+          let before, after = block ?max_level ~at_level:1 () in
+          Format.fprintf ppf before;
+          Format.fprintf ppf "%t@;" (expr ~max_level:1 e1);
+          expr_cont ~max_level:0 e2 ppf (fun () -> Format.fprintf ppf after)
+  and expr_cont ?max_level (e, _) ppf ret =
+    expr'_cont ?max_level e ppf ret
+  and expr'_cont ?max_level e ppf ret =
+    match e with
+      | Syntax.App (e1, e2) ->
+        let before, after = block ?max_level ~at_level:1 () in
+        Format.fprintf ppf before;
+        Format.fprintf ppf "%t@;" (expr ~max_level:1 e1);
+        expr_cont ~max_level:0 e2 ppf (fun () -> Format.fprintf ppf after; ret ())
+      | other -> expr' ?max_level e ppf; ret ()
   in
-    expr (Beautify.beautify e) ppf
+  expr (Beautify.beautify e) ppf
     
 let expr' e ppf = expr (Syntax.nowhere e) ppf
   
