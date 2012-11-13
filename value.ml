@@ -92,4 +92,24 @@ and reify_neutral n = Syntax.nowhere (reify_neutral' n)
 
 and reify_neutral' = function
   | Var x -> Syntax.Var x
-  | App (n, v) -> Syntax.App (reify_neutral n, reify v)
+  | App (n, v) ->
+    (* Syntax.App (reify_neutral n, reify v) *)
+    reify_cont v (fun v ->
+      Syntax.App (reify_neutral n, v))
+
+and reify_cont v ret =
+  reify'_cont v (fun v -> ret (Syntax.nowhere v))
+
+and reify'_cont v ret = match v with
+  | Universe _ | Pi _ | Lambda _ -> ret (reify' v)
+  | Neutral n -> reify_neutral'_cont n ret
+
+and reify_neutral'_cont n ret = match n with
+  | Var x -> ret (Syntax.Var x)
+  | App (n, v) ->
+    reify_cont v (fun v ->
+      reify_neutral_cont n (fun n ->
+        ret (Syntax.App (n, v))))
+
+and reify_neutral_cont n ret =
+  reify_neutral'_cont n (fun n -> ret (Syntax.nowhere n))
