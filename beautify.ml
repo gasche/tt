@@ -46,13 +46,14 @@ let rec occurs x (e, _) =
     pretty printing. *)
 let beautify =
   let rec beautify sbst (e, loc) =
-    (match e with
-      | Var x -> (try Var (List.assoc x sbst) with Not_found -> Var x)
-      | Universe k -> Universe k
-      | Pi a -> Pi (beautify_abstraction sbst a)
-      | Lambda a -> Lambda (beautify_abstraction sbst a)
-      | App (e1, e2) -> App (beautify sbst e1, beautify sbst e2)),
-    loc
+    match e with
+      | Var x -> (try Var (List.assoc x sbst) with Not_found -> Var x), loc
+      | Universe k -> Universe k, loc
+      | Pi a -> Pi (beautify_abstraction sbst a), loc
+      | Lambda a -> Lambda (beautify_abstraction sbst a), loc
+      | App (e1, e2) ->
+        beautify_cont sbst e2 (fun e2 ->
+          App (beautify sbst e1, e2), loc)
       
   and beautify_abstraction sbst (x, e1, e2) =
     let e1 = beautify sbst e1 in
@@ -61,6 +62,14 @@ let beautify =
       then String (find_available x sbst)
       else Dummy
     in
-      (y, e1, beautify ((x,y) :: sbst) e2)
+    (y, e1, beautify ((x,y) :: sbst) e2)
+
+   and beautify_cont sbst ((e, loc) as e_loc) ret =
+    match e with
+      | App (e1, e2) ->
+        beautify_cont sbst e2 (fun e2 ->
+          beautify_cont sbst e1 (fun e1 ->
+            ret (App (e1, e2), loc)))
+      | _ -> ret (beautify sbst e_loc)
   in
     beautify []
