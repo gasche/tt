@@ -9,17 +9,15 @@
     if we assign level 1 to applications, then during printing of [App (e1, e2)] we should
     print [e1] at [max_level] 1 and [e2] at [max_level] 0.
 *)
-let print ?(max_level=9999) ?(at_level=0) ppf =
-  if max_level < at_level then
-    begin
-      Format.fprintf ppf "(@[" ;
-      Format.kfprintf (fun ppf -> Format.fprintf ppf "@])") ppf
-    end
-  else
-    begin
-      Format.fprintf ppf "@[" ;
-      Format.kfprintf (fun ppf -> Format.fprintf ppf "@]") ppf
-    end
+let block ?(max_level=9999) ?(at_level=0) () =
+  if max_level < at_level
+  then format_of_string "(@[", format_of_string "@])"
+  else format_of_string "@[", format_of_string "@]"
+
+let print ?max_level ?at_level ppf =
+  let before, after = block ?max_level ?at_level () in
+  Format.fprintf ppf before ;
+  Format.kfprintf (fun ppf -> Format.fprintf ppf after) ppf
 
 (** Print the given source code position. *)
 let position loc ppf =
