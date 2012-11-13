@@ -9,11 +9,15 @@ type value =
   | Pi of abstraction
   | Lambda of abstraction
 
-and abstraction = variable * value * (value -> value)
+and abstraction = variable * value * (value -> value continuation)
+
+and 'a continuation = { call : 'b . ('a -> 'b) -> 'b }
 
 and neutral =
   | Var of variable
   | App of neutral * value
+
+let id x = x
 
 (** Comparison of values for equality. It descends into abstractions by first applying them
     to freshly generated variables, which has the effect of alpha-equivalence. *)
@@ -27,7 +31,7 @@ let rec equal v1 v2 =
 
 and equal_abstraction (x, v1, f1) (_, v2, f2) =
   equal v1 v2 &&
-    (let x = Neutral (Var (Syntax.refresh x)) in equal (f1 x) (f2 x))
+    (let x = Neutral (Var (Syntax.refresh x)) in equal ((f1 x).call id) ((f2 x).call id))
 
 and equal_neutral n1 n2 =
   match n1, n2 with
@@ -58,11 +62,11 @@ let eval ctx =
       | Syntax.App (e1, e2) ->
         let v2 = eval env e2 in
         (match eval env e1 with
-          | Lambda (_, _, f) -> f v2
+          | Lambda (_, _, f) -> (f v2).call id
           | Neutral n -> Neutral (App (n, v2))
           | Universe _ | Pi _ -> Error.runtime ~loc:(snd e2) "Function expected")
   and eval_abstraction env (x, t, e) =
-    (x, eval env t, fun v -> eval ((x, v) :: env) e)
+    (x, eval env t, fun v -> { call = fun cont -> cont (eval ((x, v) :: env) e) })
   in
     eval []
 
@@ -81,7 +85,8 @@ and reify' = function
 
 and reify_abstraction (x, t, f) =
   let x = Syntax.refresh x in
-    (x, reify t, reify (f (Neutral (Var x))))
+  (f (Neutral (Var x))).call (fun body ->
+    (x, reify t, reify body))
 
 and reify_neutral n = Syntax.nowhere (reify_neutral' n)
 
